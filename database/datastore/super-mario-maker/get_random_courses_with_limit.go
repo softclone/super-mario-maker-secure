@@ -2,6 +2,7 @@ package datastore_smm_db
 
 import (
 	"database/sql"
+	"strconv"
 	"time"
 
 	"github.com/PretendoNetwork/nex-go/v2"
@@ -14,10 +15,33 @@ import (
 	"github.com/lib/pq"
 )
 
-func GetRandomCoursesWithLimit(limit int) (types.List[datastore_super_mario_maker_types.DataStoreCustomRankingResult], *nex.Error) {
+// Difficulty thresholds for failure rates (in percentage)
+const (
+	DifficultyEasyMin    = 0
+	DifficultyEasyMax    = 34
+	DifficultyNormalMin  = 35
+	DifficultyNormalMax  = 74
+	DifficultyExpertMin  = 75
+	DifficultyExpertMax  = 95
+	DifficultySuperExpertMin = 96
+	DifficultySuperExpertMax = 100
+)
+
+type Difficulty string
+
+const (
+	DifficultyAll Difficulty = "All"
+	DifficultyEasy Difficulty = "Easy"
+	DifficultyNormal Difficulty = "Normal"
+	DifficultyExpert Difficulty = "Expert"
+	DifficultySuperExpert Difficulty = "SuperExpert"
+)
+
+func GetRandomCoursesWithLimit(limit int, difficulty Difficulty) (types.List[datastore_super_mario_maker_types.DataStoreCustomRankingResult], *nex.Error) {
 	courses := types.NewList[datastore_super_mario_maker_types.DataStoreCustomRankingResult]()
 
-	rows, err := database.Postgres.Query(`
+	// Build the query based on difficulty
+	query := `
 		SELECT
 			object.data_id,
 			object.owner,
@@ -43,10 +67,28 @@ func GetRandomCoursesWithLimit(limit int) (types.List[datastore_super_mario_make
 			object.upload_completed = TRUE AND
 			object.deleted = FALSE AND
 			object.under_review = FALSE AND
-			ranking.application_id = 0
-		ORDER BY RANDOM()
-		LIMIT $1
-	`, limit)
+			ranking.application_id = 0`
+
+	// Add difficulty filtering to the query
+	switch difficulty {
+	case DifficultyEasy:
+		query += " WHERE ranking.value BETWEEN " + strconv.Itoa(DifficultyEasyMin) + " AND " + strconv.Itoa(DifficultyEasyMax)
+	case DifficultyNormal:
+		query += " WHERE ranking.value BETWEEN " + strconv.Itoa(DifficultyNormalMin) + " AND " + strconv.Itoa(DifficultyNormalMax)
+	case DifficultyExpert:
+		query += " WHERE ranking.value BETWEEN " + strconv.Itoa(DifficultyExpertMin) + " AND " + strconv.Itoa(DifficultyExpertMax)
+	case DifficultySuperExpert:
+		query += " WHERE ranking.value BETWEEN " + strconv.Itoa(DifficultySuperExpertMin) + " AND " + strconv.Itoa(DifficultySuperExpertMax)
+	case DifficultyAll:
+		// No filtering for All difficulty
+	default:
+		// Default to All if unknown difficulty
+		globals.Logger.Warningf("Unknown difficulty: %s, defaulting to All", difficulty)
+	}
+
+	query += " ORDER BY RANDOM() LIMIT $1"
+
+	rows, err := database.Postgres.Query(query, limit)
 
 	if err != nil {
 		if err == sql.ErrNoRows {

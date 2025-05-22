@@ -7,6 +7,7 @@ import (
 	datastore_types "github.com/PretendoNetwork/nex-protocols-go/v2/datastore/types"
 	datastore_smm_db "github.com/PretendoNetwork/super-mario-maker/database/datastore/super-mario-maker"
 	"github.com/PretendoNetwork/super-mario-maker/globals"
+	"strconv"
 )
 
 func RecommendedCourseSearchObject(err error, packet nex.PacketInterface, callID uint32, param datastore_types.DataStoreSearchParam, extraData types.List[types.String]) (*nex.RMCMessage, *nex.Error) {
@@ -27,13 +28,8 @@ func RecommendedCourseSearchObject(err error, packet nex.PacketInterface, callID
 	// * Course World (Super Expert) ["1", "96", "100", "0", "0"]
 	// *
 	// * Indexes 1 and 2 seem to be a min and max for the *failure*
-	// * rate of the courses. This is not taken into account yet,
-	// * as the SQL query for this would need to be rather complex.
-	// * The last 2 values always seem to be 0, and the first seems
-	// * to always be 1 besides filtering for "All"
-	// *
-	// ! All requests are treated as filtering for "All" right now
-	// TODO - Use these ranges to properly filter by difficulty
+	// * rate of the courses. This is now taken into account with
+	// * the difficulty filtering.
 
 	// HACK The database load is exponential here and
 	length := int(param.ResultRange.Length)
@@ -43,8 +39,38 @@ func RecommendedCourseSearchObject(err error, packet nex.PacketInterface, callID
 		length = maxLength
 	}
 
-	// TODO - Use the offet? Real client never uses it, but might be nice for completeness sake?
-	pRankingResults, nexError := datastore_smm_db.GetRandomCoursesWithLimit(length)
+	// Determine difficulty based on extraData
+	var difficulty datastore_smm_db.Difficulty
+	if len(extraData) >= 1 && extraData[0].Value == "1" {
+		if len(extraData) >= 2 && len(extraData) >= 3 {
+			minFailureRate, _ := strconv.Atoi(extraData[1].Value)
+			maxFailureRate, _ := strconv.Atoi(extraData[2].Value)
+
+			if minFailureRate == 0 && maxFailureRate == 34 {
+				difficulty = datastore_smm_db.DifficultyEasy
+			} else if minFailureRate == 35 && maxFailureRate == 74 {
+				difficulty = datastore_smm_db.DifficultyNormal
+			} else if minFailureRate == 75 && maxFailureRate == 95 {
+				difficulty = datastore_smm_db.DifficultyExpert
+			} else if minFailureRate == 96 && maxFailureRate == 100 {
+				difficulty = datastore_smm_db.DifficultySuperExpert
+			} else {
+				// Unknown difficulty, default to All
+				difficulty = datastore_smm_db.DifficultyAll
+			}
+		} else {
+			// Not enough data to determine difficulty, default to All
+			difficulty = datastore_smm_db.DifficultyAll
+		}
+	} else {
+		// First element is not "1" or missing, treat as All
+		difficulty = datastore_smm_db.DifficultyAll
+	}
+
+	globals.Logger.Infof("Selected difficulty: %s", difficulty)
+
+	// TODO - Use the offset? Real client never uses it, but might be nice for completeness sake?
+	pRankingResults, nexError := datastore_smm_db.GetRandomCoursesWithLimit(length, difficulty)
 	if nexError != nil {
 		return nil, nexError
 	}
