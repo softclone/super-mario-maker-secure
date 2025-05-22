@@ -8,6 +8,7 @@ import (
 	datastore_smm_db "github.com/PretendoNetwork/super-mario-maker/database/datastore/super-mario-maker"
 	"github.com/PretendoNetwork/super-mario-maker/globals"
 	"strconv"
+	"github.com/PretendoNetwork/super-mario-maker/nex/game-mode-manager"
 )
 
 func RecommendedCourseSearchObject(err error, packet nex.PacketInterface, callID uint32, param datastore_types.DataStoreSearchParam, extraData types.List[types.String]) (*nex.RMCMessage, *nex.Error) {
@@ -37,6 +38,17 @@ func RecommendedCourseSearchObject(err error, packet nex.PacketInterface, callID
 	if length < 0 || length > maxLength {
 		globals.Logger.Warningf("Limiting request to %d courses (was %d)", maxLength, length)
 		length = maxLength
+	}
+
+	// Check if the user is in a game mode
+	userID := packet.GetSenderID()
+	state := game_mode_manager.Manager.GetState(userID)
+	if state != nil && state.Mode == game_mode_manager.GameMode100Man {
+		// If the user has no lives left, don't return any courses
+		if game_mode_manager.Manager.HasLost(userID) {
+			globals.Logger.Infof("User %d tried to get recommended courses but has no lives left", userID)
+			return nex.NewRMCError(nex.ResultCodes.DataStore.NotFound, "No courses found"), nil
+		}
 	}
 
 	// Determine difficulty based on extraData

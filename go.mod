@@ -1,8 +1,6 @@
 module github.com/PretendoNetwork/super-mario-maker
 
-go 1.23.0
-
-toolchain go1.23.5
+go 1.23
 
 require (
 	github.com/PretendoNetwork/grpc/go v0.0.0-20250123103241-5fb484bf544d

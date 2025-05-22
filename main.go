@@ -1,19 +1,23 @@
 package main
 
 import (
-	"sync"
+"sync"
 
-	"github.com/PretendoNetwork/super-mario-maker/nex"
+"github.com/PretendoNetwork/super-mario-maker/nex"
+"github.com/PretendoNetwork/super-mario-maker/nex/game-mode-manager"
 )
 
 var wg sync.WaitGroup
 
 func main() {
-	wg.Add(2)
+// Initialize the GameModeManager
+game_mode_manager.Init()
 
-	// TODO - Add gRPC server
-	go nex.StartAuthenticationServer()
-	go nex.StartSecureServer()
+wg.Add(2)
 
-	wg.Wait()
+// TODO - Add gRPC server
+go nex.StartAuthenticationServer()
+go nex.StartSecureServer()
+
+wg.Wait()
 }

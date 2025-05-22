@@ -9,6 +9,7 @@ import (
 	datastore_types "github.com/PretendoNetwork/nex-protocols-go/v2/datastore/types"
 	datastore_smm_db "github.com/PretendoNetwork/super-mario-maker/database/datastore/super-mario-maker"
 	"github.com/PretendoNetwork/super-mario-maker/globals"
+	"github.com/PretendoNetwork/super-mario-maker/nex/game-mode-manager"
 )
 
 func SuggestedCourseSearchObject(err error, packet nex.PacketInterface, callID uint32, param datastore_types.DataStoreSearchParam, extraData types.List[types.String]) (*nex.RMCMessage, *nex.Error) {
@@ -27,11 +28,17 @@ func SuggestedCourseSearchObject(err error, packet nex.PacketInterface, callID u
 	// * does act as a filter of some kind? Maybe it has to
 	// * do with difficulty? Or ratings?
 
-	_, err = strconv.ParseUint(string(extraData[0]), 0, 64)
+	courseID, err := strconv.ParseUint(string(extraData[0]), 0, 64)
 	if err != nil {
 		globals.Logger.Error(err.Error())
 		return nil, nex.NewError(nex.ResultCodes.DataStore.InvalidArgument, "Invalid argument")
 	}
+
+	// Update game mode state for course completion
+	// Assuming success = true since this is called after course completion
+	// In a real implementation, we would get the success status from the course play result
+	success := true
+	game_mode_manager.OnCourseCompleted(courseID, success)
 
 	// TODO - Use extraData for filtering
 	pRankingResults, nexError := datastore_smm_db.GetRandomCoursesWithLimit(int(param.ResultRange.Length))
